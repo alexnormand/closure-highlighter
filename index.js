@@ -4,6 +4,15 @@ var fs = require('fs');
 var uglify = require('uglify-js');
 
 
+var getAnonymousIndex = (function() {
+  var anonymousFnIndex = 1;
+
+  return function() {
+    return 'anonymous-' + anonymousFnIndex++;
+  };
+}());
+
+
 var getVariables = function(node) {
   var res = {};
 
@@ -12,10 +21,22 @@ var getVariables = function(node) {
 
     res[variable.name] = {};
 
-    if (variable.init && variable.init.TYPE === 'Function') {
-      res[variable.name] = getVariables(variable.init, variable.name);
+    if (variable.init) {
+      if (variable.init.TYPE === 'Function') {
+        res[variable.name] = getVariables(variable.init);
+      }
+
+      for (var i = 0; variable.init.body && i < variable.init.body.length; i++) {
+        var b = variable.init.body[i];
+        if (b.TYPE === 'Return' && b.value.TYPE === 'Function') {
+          res[variable.name][getAnonymousIndex()] = getVariables(b.value);
+        }
+      }
     }
+
+    res[variable.name] = Object.keys(res[variable.name]).length === 0 ? 'variable' : res[variable.name];
   }
+
   return res;
 };
 
